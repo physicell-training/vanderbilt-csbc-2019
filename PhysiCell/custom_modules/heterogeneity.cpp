@@ -196,6 +196,8 @@ void setup_tissue( void )
 	double p_min = parameters.doubles( "oncoprotein_min" ); 
 	double p_max = parameters.doubles( "oncoprotein_max" ); 
 	
+	
+	
 	int n = 0; 
 	while( y < tumor_radius )
 	{
@@ -398,7 +400,7 @@ void energy_based_cell_phenotype( Cell* pCell, Phenotype& phenotype, double dt )
 	double alpha = pCell->custom_data[alpha_i];
 	double beta = pCell->custom_data[beta_i]; 
 	double resistance = pCell->custom_data[resistance_i]; 
-		
+
 	pCell->custom_data[use_rate_i] = alpha + beta + resistance;
 		// sample the oxygen, glucose, and waste 
 	double oxygen = pCell->nearest_density_vector()[oxygen_i]; 
@@ -408,14 +410,15 @@ void energy_based_cell_phenotype( Cell* pCell, Phenotype& phenotype, double dt )
 	double use_rate = pCell->custom_data[use_rate_i]; 
 	
 	pCell->custom_data[energy_i] += 
-		dt*( alpha*oxygen*glucose + beta*glucose )/( 1.0 + dt*use_rate );	
+		dt*( alpha*oxygen*glucose + beta*glucose );
+	pCell->custom_data[energy_i] /= ( 1.0 + dt*use_rate );	
 	
 		// set secretion parameters 
 	phenotype.secretion.secretion_rates[waste_i] = beta * 10.0; 
 	phenotype.secretion.saturation_densities[waste_i] = 1.0; 
 		// set uptake rates 
 	phenotype.secretion.uptake_rates[oxygen_i] = alpha * 10.0; 
-	phenotype.secretion.uptake_rates[glucose_i] = beta * 10.0; 
+	phenotype.secretion.uptake_rates[glucose_i] = beta * 0.2; 
 		
 		// set cycle parameters 
 	double energy = pCell->custom_data[energy_i]; 
@@ -429,7 +432,7 @@ void energy_based_cell_phenotype( Cell* pCell, Phenotype& phenotype, double dt )
 	// 1/24 hr^-1 max birth rate, in units of min^-1 
 	
 		// set necrotic death rate 
-	scale = ( energy - 0.1 )/0.1; 
+	scale = ( 0.1 - energy )/0.1; 
 	if( scale < 0.0 )
 	{ scale = 0.0; } 
 	if( scale > 1.0 )
