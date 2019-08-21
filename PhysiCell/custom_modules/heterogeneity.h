@@ -86,3 +86,6 @@ void setup_tissue();
 void setup_microenvironment( void );  // done 
 
 std::vector<std::string> heterogeneity_coloring_function( Cell* );
+
+std::vector<std::string> energy_coloring_function( Cell* );
+
