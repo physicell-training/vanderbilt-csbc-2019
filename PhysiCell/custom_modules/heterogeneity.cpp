@@ -191,10 +191,12 @@ void setup_tissue( void )
 	double x_outer = tumor_radius; 
 	double y = 0.0; 
 	
-	double p_mean = parameters.doubles( "oncoprotein_mean" ); 
-	double p_sd = parameters.doubles( "oncoprotein_sd" ); 
-	double p_min = parameters.doubles( "oncoprotein_min" ); 
-	double p_max = parameters.doubles( "oncoprotein_max" ); 
+	// some bookkeeping 
+	static int energy_i = cell_defaults.custom_data.find_variable_index( "energy" ); 
+	static int alpha_i = cell_defaults.custom_data.find_variable_index( "alpha" ); 
+	static int beta_i = cell_defaults.custom_data.find_variable_index( "beta" ); 
+	static int resistance_i = cell_defaults.custom_data.find_variable_index("resistance"); 
+	static int use_rate_i = cell_defaults.custom_data.find_variable_index( "use_rate" ); 
 	
 	int n = 0; 
 	while( y < tumor_radius )
@@ -208,42 +210,39 @@ void setup_tissue( void )
 		{
 			pCell = create_cell(); // tumor cell 
 			pCell->assign_position( x , y , 0.0 );
-			pCell->custom_data[0] = NormalRandom( p_mean, p_sd );
-			if( pCell->custom_data[0] < p_min )
-			{ pCell->custom_data[0] = p_min; }
-			if( pCell->custom_data[0] > p_max )
-			{ pCell->custom_data[0] = p_max; }
+			
+			pCell->custom_data[alpha_i] = UniformRandom(); 
+			pCell->custom_data[beta_i] = UniformRandom(); 
+			pCell->custom_data[resistance_i] = UniformRandom(); 
+
 			
 			if( fabs( y ) > 0.01 )
 			{
 				pCell = create_cell(); // tumor cell 
 				pCell->assign_position( x , -y , 0.0 );
-				pCell->custom_data[0] = NormalRandom( p_mean, p_sd );
-				if( pCell->custom_data[0] < p_min )
-				{ pCell->custom_data[0] = p_min; }
-				if( pCell->custom_data[0] > p_max )
-				{ pCell->custom_data[0] = p_max; }				
+				
+				pCell->custom_data[alpha_i] = UniformRandom(); 
+				pCell->custom_data[beta_i] = UniformRandom(); 
+				pCell->custom_data[resistance_i] = UniformRandom(); 
 			}
 			
 			if( fabs( x ) > 0.01 )
 			{ 
 				pCell = create_cell(); // tumor cell 
 				pCell->assign_position( -x , y , 0.0 );
-				pCell->custom_data[0] = NormalRandom( p_mean, p_sd );
-				if( pCell->custom_data[0] < p_min )
-				{ pCell->custom_data[0] = p_min; }
-				if( pCell->custom_data[0] > p_max )
-				{ pCell->custom_data[0] = p_max; }
+
+				pCell->custom_data[alpha_i] = UniformRandom(); 
+				pCell->custom_data[beta_i] = UniformRandom(); 
+				pCell->custom_data[resistance_i] = UniformRandom(); 
 		
 				if( fabs( y ) > 0.01 )
 				{
 					pCell = create_cell(); // tumor cell 
 					pCell->assign_position( -x , -y , 0.0 );
-					pCell->custom_data[0] = NormalRandom( p_mean, p_sd );
-					if( pCell->custom_data[0] < p_min )
-					{ pCell->custom_data[0] = p_min; }
-					if( pCell->custom_data[0] > p_max )
-					{ pCell->custom_data[0] = p_max; }
+					
+					pCell->custom_data[alpha_i] = UniformRandom(); 
+					pCell->custom_data[beta_i] = UniformRandom(); 
+					pCell->custom_data[resistance_i] = UniformRandom(); 
 				}
 			}
 			x += cell_spacing; 
@@ -253,33 +252,6 @@ void setup_tissue( void )
 		y += cell_spacing * sqrt(3.0)/2.0; 
 		n++; 
 	}
-	
-	double sum = 0.0; 
-	double min = 9e9; 
-	double max = -9e9; 
-	for( int i=0; i < all_cells->size() ; i++ )
-	{
-		double r = (*all_cells)[i]->custom_data[0]; 
-		sum += r;
-		if( r < min )
-		{ min = r; } 
-		if( r > max )
-		{ max = r; }
-	}
-	double mean = sum / ( all_cells->size() + 1e-15 ); 
-	// compute standard deviation 
-	sum = 0.0; 
-	for( int i=0; i < all_cells->size(); i++ )
-	{
-		sum +=  ( (*all_cells)[i]->custom_data[0] - mean )*( (*all_cells)[i]->custom_data[0] - mean ); 
-	}
-	double standard_deviation = sqrt( sum / ( all_cells->size() - 1.0 + 1e-15 ) ); 
-	
-	std::cout << std::endl << "Oncoprotein summary: " << std::endl
-			  << "===================" << std::endl; 
-	std::cout << "mean: " << mean << std::endl; 
-	std::cout << "standard deviation: " << standard_deviation << std::endl; 
-	std::cout << "[min max]: [" << min << " " << max << "]" << std::endl << std::endl; 
 	
 	return; 
 }
@@ -441,7 +413,69 @@ void energy_based_cell_phenotype( Cell* pCell, Phenotype& phenotype, double dt )
 		// set the apoptotic death rate 
 	scale = 1.0 + 9.0*(1.0-pCell->custom_data[resistance_i])*waste; 
 	phenotype.death.rates[apoptosis_i] = scale * 6.94e-6; 
+	
+//	std::cout << "\tapoptotic: " << scale << " r: " << pCell->custom_data[resistance_i] << " w: " << waste << std::endl; 
+	
 	// 1% of the max birth rate 
 		
 	return; 
 }
+
+std::vector<std::string> energy_coloring_function( Cell* pCell )
+{
+	// color 0: cytoplasm fill 
+	// color 1: outer outline 
+	// color 2: nuclear fill 
+	// color 3: nuclear outline 
+	
+	// some bookkeeping 
+	static int energy_i = pCell->custom_data.find_variable_index( "energy" ); 
+	static int alpha_i = pCell->custom_data.find_variable_index( "alpha" ); 
+	static int beta_i = pCell->custom_data.find_variable_index( "beta" ); 
+	static int resistance_i = pCell->custom_data.find_variable_index( "resistance" ); 
+	static int use_rate_i = pCell->custom_data.find_variable_index( "use_rate" ); 
+	
+	// start black 
+	std::vector< std::string > output( 4, "black" ); 
+
+	// nucleus: color by the three "genes" 
+	// red: alpha
+	// green: beta 
+	// blue: resistance 
+	// cytoplasm: energy (black = 0, white >= 1)
+	if( pCell->phenotype.death.dead == false )
+	{
+		int red = (int) round( 255.0 * pCell->custom_data[alpha_i] ); 
+		int green = (int) round( 255.0 * pCell->custom_data[beta_i] ); 
+		int blue = (int) round( 255.0 * pCell->custom_data[resistance_i] ); 
+		int grey = (int) round( 255.0 * pCell->custom_data[energy_i] ); 
+		char szTempString [128];
+		sprintf( szTempString , "rgb(%u,%u,%u)", red, green, blue );
+		output[2].assign( szTempString ); // nucleus by alpha, beta, resistance "genes"
+		sprintf( szTempString , "rgb(%u,%u,%u)", grey, grey, grey );
+		output[0].assign( szTempString ); // cyto by energy 
+		
+		return output; 
+	}
+
+	// if not, dead colors 
+	
+	if (pCell->phenotype.cycle.current_phase().code == PhysiCell_constants::apoptotic ) 
+		// Apoptotic - Red
+	{
+		output[0] = "rgb(255,0,0)";
+		output[2] = "rgb(125,0,0)";
+	}
+	
+	// Necrotic - Brown // switch to black???
+	if( pCell->phenotype.cycle.current_phase().code == PhysiCell_constants::necrotic_swelling || 
+		pCell->phenotype.cycle.current_phase().code == PhysiCell_constants::necrotic_lysed || 
+		pCell->phenotype.cycle.current_phase().code == PhysiCell_constants::necrotic )
+	{
+		output[0] = "rgb(250,138,38)";
+		output[2] = "rgb(139,69,19)";
+	}	
+	
+	return output; 
+}
+
