@@ -440,7 +440,6 @@ void energy_based_cell_phenotype( Cell* pCell, Phenotype& phenotype, double dt )
 
 		// set the apoptotic death rate 
 	scale = 1.0 + 9.0*(1.0-pCell->custom_data[resistance_i])*waste; 
-	std::cout << "\tapoptotic: " << scale << " r: " << pCell->custom_data[resistance_i] << " w: " << waste << std::endl; 
 	phenotype.death.rates[apoptosis_i] = scale * 6.94e-6; 
 	// 1% of the max birth rate 
 		
